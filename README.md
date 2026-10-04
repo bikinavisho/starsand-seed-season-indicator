@@ -2,7 +2,7 @@
 
 A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Starsand Island** that shows a small icon over seeds in your inventory when their crop can grow in the current in-game season.
 
-![seasonal icon in seed shop](docs/screenshot.jpg)
+![seasonal icon in player inventory](docs/inventory_screenshot.jpg)
 
 ## What it does
 
@@ -10,6 +10,8 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Starsand Island** that
 - Shows **no icon** for year-round crops.
 - Shows **no icon** for crops that are out of season.
 - Reads season data from the game's own crop metadata, so there is no hardcoded crop list. Modded or future crops should work automatically.
+
+![seasonal icon in seed shop](docs/seedshop_screenshot.jpg)
 
 ## Requirements
 
@@ -20,7 +22,7 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Starsand Island** that
 
 1. Install BepInEx into your Starsand Island folder and run the game once so it generates its folders.
 2. Download the latest release from the [Releases](../../releases) page.
-3. Copy `StarsandIsland.SeedSeasonDiagnostic.dll` into:
+3. Copy `StarsandIsland.SeedSeasonDisplay.dll` into:
    ```
    <Steam>\steamapps\common\StarsandIsland\BepInEx\plugins\
    ```
@@ -44,13 +46,11 @@ The mod looks at each seed item, resolves it to its crop template, and checks th
 
 ## Project status
 
-The mod is functional. Seeds in your inventory show a season emoji (🌸 spring, ☀️ summer, 🍂 fall, ❄️ winter) when their crop is seasonal and can be planted in the current season.
-
-The indicator currently uses Unicode emoji rather than a custom image icon. Replacing it with a proper sprite is a possible future improvement.
+The mod is functional. Seeds in your inventory show a custom season icon when their crop is seasonal and can be planted in the current season.
 
 ## Known issues / limitations
 
-- None at the moment; it works for the players inventory, storage, and the seed shop. 
+- None at the moment; it works for the player's inventory, storage, and the seed shop. 
 
 ## Contributing
 

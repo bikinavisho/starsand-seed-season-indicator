@@ -1,20 +1,21 @@
 ﻿using System;
+using System.IO;
+using System.Reflection;
 using BepInEx;
 using BepInEx.Unity.IL2CPP;
 using GameTime;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using Inventory;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UI;
 using XSandbox.Farm;
 
-namespace StarsandIsland.SeedSeasonDiagnostic;
+namespace StarsandIsland.SeedSeasonDisplay;
 
-[BepInPlugin("com.starsandisland.seedseason-indicator", "Seasonal Seed Indicator", "0.1.0")]
-public sealed class SeedSeasonDiagnosticPlugin : BasePlugin
+[BepInPlugin("com.starsandisland.seedseason-indicator", "Seed Season Display", "1.0.0")]
+public sealed class SeedSeasonDisplayPlugin : BasePlugin
 {
     public override void Load()
     {
@@ -27,6 +28,10 @@ public sealed class SeasonalSeedIndicatorManager : MonoBehaviour
 {
     private const string IndicatorName = "SeasonalSeedIndicator";
     private const float RefreshIntervalSeconds = 0.75f;
+    private static Sprite _springSprite;
+    private static Sprite _summerSprite;
+    private static Sprite _fallSprite;
+    private static Sprite _winterSprite;
 
     private ESeason _lastObservedSeason = ESeason.Total;
     private float _nextRefreshSeconds;
@@ -109,40 +114,40 @@ public sealed class SeasonalSeedIndicatorManager : MonoBehaviour
             return;
         }
 
-        string symbol = GetSeasonSymbolForTemplate(template);
-        TextMeshProUGUI indicator = GetOrCreateIndicator(parent);
+        Sprite sprite = GetSeasonSpriteForTemplate(template);
+        Image indicator = GetOrCreateIndicator(parent);
 
-        if (string.IsNullOrEmpty(symbol))
+        if (sprite == null)
         {
-            indicator.text = string.Empty;
+            indicator.sprite = null;
             indicator.gameObject.SetActive(false);
             return;
         }
 
+        indicator.sprite = sprite;
         indicator.gameObject.SetActive(true);
-        indicator.text = symbol;
     }
 
-    private static string GetSeasonSymbolForTemplate(ItemTemplate template)
+    private static Sprite GetSeasonSpriteForTemplate(ItemTemplate template)
     {
         CropTemplate cropTemplate = ResolveCropTemplate(template);
         if (cropTemplate == null || cropTemplate.SeasonConfigs == null)
         {
-            return string.Empty;
+            return null;
         }
 
         ESeason currentSeason = KGameTimeUtil.Now.GetSeason();
         if (HasAllFourSeasons(cropTemplate.SeasonConfigs))
         {
-            return string.Empty;
+            return null;
         }
 
         if (cropTemplate.SeasonConfigs.Contains(currentSeason))
         {
-            return GetSeasonSymbol(currentSeason);
+            return GetSeasonSprite(currentSeason);
         }
 
-        return string.Empty;
+        return null;
     }
 
     private static CropTemplate ResolveCropTemplate(ItemTemplate template)
@@ -207,34 +212,78 @@ public sealed class SeasonalSeedIndicatorManager : MonoBehaviour
             && seasonConfigs.Contains(ESeason.Winter);
     }
 
-    private static string GetSeasonSymbol(ESeason season)
+    private static Sprite GetSeasonSprite(ESeason season)
     {
         switch (season)
         {
             case ESeason.Spring:
-                return "🌸";
+                return _springSprite ?? (_springSprite = LoadSeasonSprite("spring.png"));
             case ESeason.Summer:
-                return "☀️";
+                return _summerSprite ?? (_summerSprite = LoadSeasonSprite("summer.png"));
             case ESeason.Autumn:
-                return "🍂";
+                return _fallSprite ?? (_fallSprite = LoadSeasonSprite("fall.png"));
             case ESeason.Winter:
-                return "⛄";
+                return _winterSprite ?? (_winterSprite = LoadSeasonSprite("winter.png"));
             default:
-                return string.Empty;
+                return null;
         }
     }
 
-    private static TextMeshProUGUI GetOrCreateIndicator(Transform parent)
+    private static Sprite LoadSeasonSprite(string fileName)
+    {
+        string resourceName = "StarsandIsland.SeedSeasonDisplay.Assets." + fileName;
+        using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
+        {
+            if (stream == null)
+            {
+                throw new InvalidOperationException("Embedded seasonal icon resource not found: " + resourceName);
+            }
+
+            using (MemoryStream buffer = new MemoryStream())
+            {
+                stream.CopyTo(buffer);
+                byte[] imageData = buffer.ToArray();
+                Texture2D texture = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+                texture.filterMode = FilterMode.Point;
+                texture.wrapMode = TextureWrapMode.Clamp;
+                if (!ImageConversion.LoadImage(texture, imageData, true))
+                {
+                    UnityEngine.Object.Destroy(texture);
+                    throw new InvalidOperationException("Unable to decode embedded seasonal icon resource: " + resourceName);
+                }
+
+                return Sprite.Create(
+                    texture,
+                    new Rect(0f, 0f, 64f, 64f),
+                    new Vector2(0.5f, 0.5f),
+                    100f);
+            }
+        }
+    }
+
+    private static Image GetOrCreateIndicator(Transform parent)
     {
         Transform existingIndicator = parent.Find(IndicatorName);
         if (existingIndicator != null)
         {
-            return existingIndicator.GetComponent<TextMeshProUGUI>();
+            Image existingImage = existingIndicator.GetComponent<Image>();
+            if (existingImage != null)
+            {
+                return existingImage;
+            }
+
+            Component oldTextIndicator = existingIndicator.GetComponent("TextMeshProUGUI");
+            if (oldTextIndicator != null)
+            {
+                UnityEngine.Object.Destroy(oldTextIndicator);
+            }
+
+            return existingIndicator.gameObject.AddComponent<Image>();
         }
 
         GameObject indicatorObject = new GameObject(IndicatorName);
         RectTransform rectTransform = indicatorObject.AddComponent<RectTransform>();
-        indicatorObject.AddComponent<TextMeshProUGUI>();
+        Image indicator = indicatorObject.AddComponent<Image>();
         rectTransform.SetParent(parent, false);
         rectTransform.anchorMin = new Vector2(1f, 1f);
         rectTransform.anchorMax = new Vector2(1f, 1f);
@@ -242,12 +291,8 @@ public sealed class SeasonalSeedIndicatorManager : MonoBehaviour
         rectTransform.anchoredPosition = new Vector2(-8f, -8f);
         rectTransform.sizeDelta = new Vector2(28f, 28f);
 
-        TextMeshProUGUI indicator = indicatorObject.GetComponent<TextMeshProUGUI>();
         indicator.raycastTarget = false;
-        indicator.alignment = TextAlignmentOptions.Center;
-        indicator.fontSize = 20f;
-        indicator.text = string.Empty;
-        indicator.enableWordWrapping = false;
+        indicator.preserveAspect = true;
         indicator.gameObject.SetActive(false);
         return indicator;
     }

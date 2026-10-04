@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <AssemblyName>StarsandIsland.SeedSeasonDiagnostic</AssemblyName>
+    <AssemblyName>StarsandIsland.SeedSeasonDisplay</AssemblyName>
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
@@ -40,6 +40,10 @@
       <HintPath>$(StarsandIslandDir)\BepInEx\interop\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(StarsandIslandDir)\BepInEx\interop\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>$(StarsandIslandDir)\BepInEx\interop\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>
@@ -48,9 +52,11 @@
       <HintPath>$(StarsandIslandDir)\BepInEx\interop\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Unity.TextMeshPro">
-      <HintPath>$(StarsandIslandDir)\BepInEx\interop\Unity.TextMeshPro.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\spring.png" LogicalName="StarsandIsland.SeedSeasonDisplay.Assets.spring.png" />
+    <EmbeddedResource Include="Assets\summer.png" LogicalName="StarsandIsland.SeedSeasonDisplay.Assets.summer.png" />
+    <EmbeddedResource Include="Assets\fall.png" LogicalName="StarsandIsland.SeedSeasonDisplay.Assets.fall.png" />
+    <EmbeddedResource Include="Assets\winter.png" LogicalName="StarsandIsland.SeedSeasonDisplay.Assets.winter.png" />
   </ItemGroup>
 </Project>
