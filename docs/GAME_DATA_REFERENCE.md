@@ -87,15 +87,13 @@ XSandbox.Talent.TalentItemExt
 XSandbox.UsageItemExt
 ```
 
-The current F7 diagnostic scans `KItemTemplateSet.AllTemplates.Values`,
-silently skips records without the `FarmSeedItemExt` key, then converts each
-existing value using
-`((Il2CppObjectBase)value).TryCast<FarmSeedItemExt>()`. It logs one compact
-line for each successfully resolved seed and summarizes scan, cast,
-template-resolution, invalid-reference, and four-season counts. It also
-searches `ItemTemplate.DisplayName` for Blue Sleep Lily and Rampant Pasture
-Grass candidates without assuming their item IDs. Results from this expanded
-catalog scan are pending.
+The historical F7 catalog diagnostic was removed from the release plugin
+after its investigation was completed. Its reported scan covered 5,927
+`KItemTemplateSet.AllTemplates.Values` records and found 219
+`FarmSeedItemExt` entries; all 219 values passed
+`((Il2CppObjectBase)value).TryCast<FarmSeedItemExt>()`, and all 219 crop
+templates resolved. These counts were provided in the runtime investigation
+results; this document does not claim a fresh scan.
 
 #### CropTemplate
 
@@ -167,9 +165,11 @@ XSandbox.Farm.CCrop.IsGrowableSeason()
 
 which takes no arguments.
 
-Do not assume that any one of these is the authoritative API for the mod until its usage is traced.
-
-In particular, investigate whether `ESeasonFlag.All` is actually used by crop definitions to represent crops that grow in all seasons.
+The seed-season display uses `GameTime.ESeason` for both
+`KGameTimeUtil.Now.GetSeason()` and `CropTemplate.SeasonConfigs`. It does not
+use `ESeasonFlag`, `Gameworld.ESeasonType`, or `CCrop.IsGrowableSeason()` for
+the indicator. The all-season decision is made by checking whether
+`SeasonConfigs` contains all four actual `ESeason` values.
 
 
 ---
@@ -288,10 +288,10 @@ public class FarmSeedItemExt : ItemExtension
 }
 ```
 
-`FarmSeedItemExt` is a confirmed association from the six tested seed items
-to their entity strings and crop templates. The expanded F7 catalog scan is
-checking whether this relationship also holds for other seed records,
-including unusual/special seeds; its runtime results are pending.
+`FarmSeedItemExt` is a confirmed association from the tested seed items to
+their entity strings and crop templates. The reported catalog-wide runtime
+scan found 219 entries, all successfully cast and resolved, rather than only
+the original six focused examples.
 
 The important relationship is:
 
@@ -337,8 +337,9 @@ The property belongs to `XSandbox.Farm.CropTemplate`, and its fully qualified
 interop type is
 `Il2CppSystem.Collections.Generic.List<GameTime.ESeason>`. The crop template
 also exposes `Name`, `IconPath`, `IsTree`, growth-stage data, and other crop
-configuration. The actual configured values are not included in this
-workspace, so the game's convention for year-round crops is still unknown.
+configuration. Runtime results include crops with all four actual seasons;
+the mod treats the presence of Spring, Summer, Autumn, and Winter in this
+list as year-round for indicator purposes.
 
 `XSandbox.Farm.FarmSeedItemExt.Template` (also in `GameWorld.dll`) is confirmed
 to have type
@@ -376,7 +377,7 @@ Item.Crop.WaterSpinachSeed_Eternity
 `Item.Fish_Arowana` was also found during the earlier inventory scan and is
 not a crop seed. The later enumeration corrects the interpretation of the
 initial null results: the extension key and value exist, and each value can
-be converted with `TryCast<FarmSeedItemExt>()`. The current F7 probe reads the
+be converted with `TryCast<FarmSeedItemExt>()`. The removed F7 probe read the
 targeted `Entity` and `Template` data; resolved crop names and seasons are
 recorded in the
 [reverse-engineering log](REVERSE_ENGINEERING_LOG.md#farmseeditemext-dictionary-value-representation).
@@ -442,8 +443,8 @@ If found, it reported `m_FarmSeedItemExt`, `Entity`, `Template.Get()`,
 fields or use reflection for this path.
 
 The later direct `CHunter` attempt is recorded in the reverse-engineering log.
-This approach is no longer the current F7 diagnostic and should not be resumed
-for the current planting-identifier investigation.
+This approach was not adopted in the released plugin and should not be
+resumed for the current planting-identifier investigation.
 
 `KFarmGunMotion.Init(CHunter)` and the `CHunter.HunterMotion` /
 `HunterMotionGameObject` fields support the ownership hypothesis. However,
@@ -548,9 +549,10 @@ not found in the available `reference/decompiled_game/` source, and no
 managed caller chain from a seed ID to `CFarmlandUnit.FarmSeed` was found.
 The F7 `RequestFarmSeed` boundary attempt captured no request before either
 controlled Water Spinach `FarmSeed` call, and that route is not being pursued
-further for now. Current F7 instead scans all loaded seed ItemTemplates for
-`FarmSeedItemExt` values, uses `TryCast<FarmSeedItemExt>()`, and resolves their
-crop-template references. See the
+further for now. A later temporary F7 diagnostic scanned the loaded seed
+ItemTemplates for `FarmSeedItemExt`, used `TryCast<FarmSeedItemExt>()`, and
+resolved their crop-template references; that diagnostic was removed from the
+release plugin. See the
 [reverse-engineering log](REVERSE_ENGINEERING_LOG.md).
 
 ---
@@ -601,13 +603,9 @@ This is an IL2CPP interop wrapper rather than the original source implementation
 
 The method is interesting because its name strongly suggests it checks whether the crop can currently grow in the current season.
 
-However:
-
-**Do not assume this method can or should be used for inventory seeds.**
-
-`CCrop` appears to represent an actual planted crop entity/object, so using it directly may be inappropriate for determining seed metadata.
-
-The method should nevertheless be investigated because it may reveal how the underlying `CropTemplate`/season data is interpreted.
+However, this method is not used for inventory seed season decisions. The
+indicator reads the crop definition from `FarmSeedItemExt.Template.Get()` and
+compares its `SeasonConfigs` directly with the current `ESeason`.
 
 ---
 

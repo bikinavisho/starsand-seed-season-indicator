@@ -4,7 +4,59 @@
 
 # UI Integration Notes
 
+## Current seasonal-indicator integration
+
+The implemented plugin is `SeedSeasonDisplayPlugin` in
+`src/SeedSeasonDisplayPlugin.cs`. It adds
+`SeasonalSeedIndicatorManager`, which applies the same image-overlay logic to
+the following UI elements:
+
+| Surface | Cell/card component | Status |
+| ------- | ------------------- | ------ |
+| Player inventory | `UI.KUICell_Item` | Implemented; developer-confirmed working |
+| Storage | `UI.KUICell_Item` | Implemented through inventory item cells; developer-confirmed working |
+| Seed shop | `UI.KUIShopItemCard` | Implemented; developer-confirmed working |
+
+The inventory cell's `Template` (or its current `Item.Template` fallback) and
+the shop card's `ShopItem.Template.ItemTemplate.Get()` provide the item
+template. The shared resolver checks `ItemTemplate.Extensions` for the
+`XSandbox.Farm.FarmSeedItemExt` entry, converts its value using
+`((Il2CppObjectBase)value).TryCast<FarmSeedItemExt>()`, and resolves
+`FarmSeedItemExt.Template.Get()` to the crop template.
+
+Each indicator is a separate `UnityEngine.UI.Image` child of the cell's
+`Preview` transform (falling back to the cell transform if needed). It does
+not replace or modify the preview. The image is anchored at the top right,
+offset by 8 UI units, sized 28×28, preserves aspect, and does not receive
+raycasts. The named child is reused; if an old TextMeshPro overlay child is
+found, its text component is removed and an `Image` is added.
+
+The current season comes from `KGameTimeUtil.Now.GetSeason()`. The plugin
+compares it to the last observed `ESeason`; on change, and every 0.75 seconds,
+it updates active `KUICell_Item` and `KUIShopItemCard` instances. The recurring
+refresh updates recycled cells whose item binding changes. Empty, non-seed,
+out-of-season, and all-four-season items clear/hide the image. Only the
+current season's sprite is assigned.
+
+Four 64×64 PNGs are included as explicit embedded resources in
+`src/SeedSeasonDisplay.csproj` with logical names under
+`StarsandIsland.SeedSeasonDisplay.Assets.*`. The plugin reads the embedded
+bytes through its assembly, loads them into `Texture2D` instances with
+`ImageConversion.LoadImage`, and creates a sprite from the full 64×64 rect.
+Point filtering and clamp wrapping are set; the four sprites are cached in
+static fields and are decoded on first use. There is no TextMeshPro assembly
+reference in the project.
+
+The current source contains no F7 hotkey or diagnostic scan code. F7 references
+in the reverse-engineering documents describe historical investigation tools,
+not the released plugin.
+
+---
+
 ### ItemBrowser investigation
+
+The notes below record earlier ItemBrowser research and are not required for
+the current seed-indicator implementation.
 
 A community ItemBrowser/Item Spawner mod is installed and has helped expose item information.
 
@@ -190,7 +242,8 @@ This method does NOT appear to be where the actual item data is determined.
 
 It primarily constructs the Unity UI objects.
 
-The next useful investigation is to find where:
+At the time of this ItemBrowser inspection, the proposed next investigation
+was to find where:
 
 ```text
 _tooltipTitle.text
@@ -210,7 +263,7 @@ Template
 
 are populated.
 
-This can reveal exactly where ItemBrowser gets:
+This could reveal exactly where ItemBrowser gets:
 
 ```text
 Autumn Crop

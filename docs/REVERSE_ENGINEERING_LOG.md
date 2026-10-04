@@ -4,6 +4,30 @@
 
 # Reverse-Engineering Log
 
+## Current implementation status (2026-10-04)
+
+The investigation documented below led to the `Seed Season Display` plugin.
+Current implementation details are summarized in
+[UI integration notes](UI_INTEGRATION_NOTES.md) and
+[modding requirements](MODDING_REQUIREMENTS.md).
+
+- The runtime catalog scan was reported as 5,927 item templates, 219
+  `FarmSeedItemExt` entries, 219 successful `TryCast` conversions, and 219
+  resolved crop templates. This completed the former full-catalog validation
+  priority.
+- The plugin displays cached, embedded seasonal PNG sprites as separate
+  `UnityEngine.UI.Image` overlays. The developer confirmed the feature works
+  in player inventory, storage, and the seed shop.
+- The plugin polls `KGameTimeUtil.Now.GetSeason()`, compares the observed
+  `ESeason`, and refreshes active inventory cells and shop cards on a season
+  change or every 0.75 seconds. The three UI surfaces are confirmed working;
+  an actual season-rollover test is not recorded here.
+- F7 was used by temporary read-only diagnostic builds during investigation.
+  The current release source has no F7 hotkey or diagnostic code.
+- The final recorded build after the image replacement and rename succeeded
+  with zero warnings and zero errors. This is a previous build result, not a
+  build run during the documentation update.
+
 ## Historical player-inventory traversal probe
 
 An earlier diagnostic used this API path to scan the main player's bag:
@@ -23,9 +47,9 @@ runtime, check `KWorldUtil.IsWorldReady` and null-check the entity, component,
 item set, item, and template before reading them. The user tested the
 diagnostic and confirmed this traversal finds the known inventory items.
 
-That implementation was superseded. The current F7 diagnostic scans the
-loaded `KItemTemplateSet` catalog for `FarmSeedItemExt` entries and validates
-their entity/crop/season metadata.
+That inventory traversal was superseded by the historical catalog diagnostic,
+which scanned loaded `KItemTemplateSet` records for `FarmSeedItemExt`. The
+diagnostic has since been removed from the release plugin.
 
 An earlier implementation also used F8 for a separate read-only probe over
 `KCropTemplateSet.Instance.AllTemplates`. It logged crop-template keys/names
@@ -44,9 +68,9 @@ are summarized in the crop-reference sections below.
 # Historical crop-reference probe findings (2026-10-03)
 
 This section records results from a prior read-only F7 crop-reference probe.
-Those results establish observations from that run, not the behavior of the
-current F7 handler. The `FarmSeedItemExt` path has since been tested directly
-against the loaded item-template records, as described below.
+Those results establish observations from that run, not behavior of the
+release plugin. The `FarmSeedItemExt` path was later tested directly against
+loaded item-template records, as described below.
 
 ## What the scan actually proved
 
@@ -163,16 +187,14 @@ The current evidence establishes:
    through `Entity` and `Template.Get()` to the crop metadata documented
    below. The original `DataObj.Get(Type, create:false)` call returned null
    and was a retrieval false negative.
-4. The current F7 diagnostic scans the complete loaded `KItemTemplateSet`
-   collection for additional records with `FarmSeedItemExt`, including
-   special seeds located by display name. It reports compact per-seed results
-   and aggregate resolution/all-season counts. Runtime results from this
-   broader catalog scan are pending.
+4. The reported catalog-wide scan covered 5,927 item templates and resolved
+   all 219 records with `FarmSeedItemExt` (219 successful casts and 219
+   resolved crop templates). This confirms the resolver beyond the original
+   six focused examples.
 
-The direct resolver has been confirmed for the six tested records, but
-consistency across the entire seed catalog remains to be validated. Do not
-select a crop from ambiguous reverse-reference matches or treat `ReturnSeed`
-as a universal planting-seed link.
+Do not select a crop from ambiguous reverse-reference matches or treat
+`ReturnSeed` as a universal planting-seed link. The current mod uses the
+direct `FarmSeedItemExt.Template.Get()` resolver instead.
 
 ## Historical static planting-path investigation (2026-10-03)
 
@@ -263,9 +285,9 @@ are not sufficient for a general overlay: Water Spinach is ambiguous, and the
 runtime scan found no `GrowthStages[3].SeedItem` match for
 `Item.Crop.SunFlowerSeed`.
 
-This assessment predates the focused loaded-record probe and current F7
-catalog scan. The earlier proposed `KFarmGunMotion` observation is
-superseded and is not part of the current diagnostic.
+This assessment predates the focused loaded-record probe and catalog scan.
+The earlier proposed `KFarmGunMotion` observation was superseded and is not
+part of the current plugin.
 
 ---
 
@@ -294,68 +316,21 @@ empty season lists.
 
 # Reverse Engineering Priorities
 
-Investigate in approximately this order:
+The original investigation priorities below have been completed or deliberately
+deferred:
 
-### Current priority — Validate the full seed catalog
+| Topic | Current status |
+| ----- | -------------- |
+| Full seed catalog | Completed: the reported scan resolved all 219 `FarmSeedItemExt` entries across 5,927 item templates. |
+| Runtime crop seasons | Confirmed through the loaded `CropTemplate.SeasonConfigs`; the display checks the four actual `ESeason` values. |
+| Season rollover event | No reliable publisher was confirmed. Do not reopen event investigation unless runtime behavior fails; the mod currently polls `KGameTimeUtil.Now.GetSeason()`. |
+| ItemBrowser data flow | Not needed for the working resolver or current UI feature. |
+| Inventory, storage, and seed shop UI | Implemented and developer-confirmed working; see [UI integration notes](UI_INTEGRATION_NOTES.md). |
 
-The current F7 diagnostic enumerates `KItemTemplateSet.AllTemplates.Values`,
-skips records without a `FarmSeedItemExt` key, converts present values with
-`TryCast<FarmSeedItemExt>()`, and logs only successful seed-to-crop
-resolutions. It summarizes total templates scanned, extension presence,
-successful casts, crop-template successes/failures, invalid template
-references, and four-season crops. It separately checks matched display names
-for Blue Sleep Lily and Rampant Pasture Grass without hardcoding item IDs.
-
-Runtime results from this catalog-wide scan are pending. In particular, do
-not infer yet that the six confirmed records represent the entire seed
-catalog, and do not add special rules for hybrid, Rampant, or
-Eternity/Immortal crops.
-
-### Priority 2 — Verify real crop season values
-
-Extract or inspect the packed `.ab` assets under the installed game's
-`Starsand Island_Data\StreamingAssets\Bundles` directory. Find actual
-serialized crop templates and confirm `SeasonConfigs` for single-season,
-multi-season, and year-round crops. Do not infer the values from item names or
-display labels.
-
-### Priority 3 — Verify season-change notification
-
-Trace the publisher and subscription paths for
-`KGameTimeEvent.TimeSystemLoaded` and
-`KGameTimeEvent.CrossWideTiemSetted`. Confirm whether either fires on season
-rollover. If neither does, check for season changes using
-`KGameTimeUtil.Now.GetSeason()` while the inventory UI is active.
-
-The event-argument types and handler names are present in the available
-decompiled source, but no publisher/subscriber path or rollover behavior has
-been confirmed. Until verified, lightweight polling of the current `ESeason`
-while the inventory UI is active is the recommended fallback; refresh only
-when the season value changes.
-
-### Priority 4 — ItemBrowser data flow
-
-Trace:
-
-```text
-CatalogEntry
-```
-
-construction and determine where:
-
-```text
-TypeName
-TypeId
-Template
-```
-
-come from.
-
-This may provide a useful example of how to retrieve `ItemTemplate` data.
-
-### Priority 5 — Inventory UI
-
-After the crop-data problem is solved, identify the actual Starsand Island inventory UI class and determine how inventory item slots are rendered.
+The only relevant runtime verification not recorded is a dedicated test that
+keeps an open UI through an actual season rollover and observes the icon
+change. Do not pursue the old planting-identifier boundary as part of the
+season-indicator work.
 
 ---
 
@@ -839,5 +814,6 @@ The `RequestFarmSeed` Harmony observation never fired in the two controlled
 Water Spinach runs. The method itself may or may not have been called; the
 runtime observation alone does not decide that. As directed, this boundary
 will not be pursued further for now. The all-zero `cropGuid/entityId` values
-are not being pursued as a seed/crop resolver. The current focused task is to
-read the confirmed `FarmSeedItemExt` entries on the six loaded seed templates.
+are not being pursued as a seed/crop resolver. The later catalog-wide probe
+resolved the seed-extension relationship across the loaded seed catalog; the
+display plugin now consumes that confirmed metadata path.

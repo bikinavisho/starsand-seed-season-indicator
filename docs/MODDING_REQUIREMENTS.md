@@ -12,6 +12,30 @@ The goal is to add a small visual indicator to seed items in the player's invent
 
 The mod should rely on the game's own crop/item data rather than maintaining a manually hardcoded list of crops.
 
+## Implementation status (2026-10-04)
+
+The player inventory, storage, and seed-shop indicators are implemented and
+have been confirmed working in-game by the developer. The current
+implementation uses a separate `UnityEngine.UI.Image` overlay, not text or
+emoji. It loads four PNG assets embedded in `StarsandIsland.SeedSeasonDisplay.dll`:
+
+| Current season | Embedded asset |
+| -------------- | -------------- |
+| Spring         | `spring.png` |
+| Summer         | `summer.png` |
+| Autumn         | `fall.png` |
+| Winter         | `winter.png` |
+
+The overlay is reused on each cell. The manager compares the current
+`GameTime.ESeason` with the previously observed season, and scans visible
+inventory cells and shop cards when the season changes or every 0.75 seconds.
+This periodic refresh also handles recycled/rebound cells. The four decoded
+sprites are cached. The source assets remain under `src/Assets`; they are
+compiled into the DLL as embedded resources.
+
+The latest documented build in this work sequence succeeded with zero
+warnings and zero errors. There is no F7 diagnostic hotkey or diagnostic
+handler in the current plugin source.
 
 ---
 
@@ -39,29 +63,21 @@ Winter-only crop → Winter icon
 All-season crop → NO icon
 ```
 
-Do not treat the absence of a recognized season as evidence that a crop is year-round.
-
-Determine how the game itself represents this distinction.
+The implementation treats a crop as year-round only when
+`SeasonConfigs` contains Spring, Summer, Autumn, and Winter. A missing crop or
+season list does not establish year-round behavior and produces no icon.
 
 
 ---
 
-### Inventory UI investigation
+### Inventory UI integration
 
-The final mod needs to place a small seasonal icon on seed inventory slots.
+The implemented mod places a small seasonal image on seed cells in player
+inventory and storage, and on cards in the seed shop.
 
-Do not assume the inventory UI class or slot implementation.
-
-First identify:
-
-* The actual inventory UI class.
-* How inventory item slots are represented.
-* How item icons are created.
-* How items are refreshed.
-* Whether slots are pooled/reused.
-* Whether there is an existing tooltip/item-display system we can hook into.
-
-Prefer integrating with the existing UI rather than creating a separate inventory window.
+Current integrations use `UI.KUICell_Item` for inventory/storage item cells and
+`UI.KUIShopItemCard` for seed-shop cards. Their existing `Preview` image is not
+replaced or modified; the indicator is a separate child image.
 
 ### UI requirements
 
@@ -71,7 +87,7 @@ Conceptually:
 
 ```text
 ┌─────────┐
-│ 🍂      │
+│ [icon]  │
 │         │
 │  SEED   │
 │         │
@@ -80,7 +96,9 @@ Conceptually:
 
 The season indicator should overlay the existing seed icon rather than replace it.
 
-The actual artwork and exact placement can be determined later.
+The current icon is positioned at the upper-right of the preview, displayed at
+28×28 UI units, with aspect preserved. Its PNG sprite uses the full 64×64
+source image.
 
 The implementation should avoid:
 
@@ -134,18 +152,18 @@ If a crop does not grow in all four seasons, it is a seasonal crop. Display a sm
 
 The icon represents the current season, not a season chosen once from the crop's growing-season list. For example, a crop that grows in both Spring and Summer shows the Summer icon while it is Summer, and the Spring icon while it is Spring. If the current season is not one of that crop's growing seasons, display no icon.
 
-| Growing season | Icon    |
-| -------------- | ------- |
-| Spring         | Flower  |
-| Summer         | Sun     |
-| Autumn/Fall    | Leaf    |
-| Winter         | Snowman |
+| Current growing season | Asset |
+| ---------------------- | ----- |
+| Spring                 | `spring.png` |
+| Summer                 | `summer.png` |
+| Autumn                 | `fall.png` |
+| Winter                 | `winter.png` |
 
 For example:
 
 ```text
 [ Crop Seeds that grow in Autumn; current season is Autumn ]
-       🍂
+       [fall.png]
 ```
 
 The exact visual implementation can be refined later.
@@ -161,7 +179,7 @@ The mod must NOT simply determine the icon from the seed's category/name unless 
 For example:
 
 ```text
-Spring/Summer Crop Seeds → current season is Summer → ☀️
+Spring/Summer Crop Seeds → current season is Summer → `summer.png`
 Spring/Summer Crop Seeds → current season is Autumn → no icon
 Some Year-Round Seed → All Seasons → no icon
 ```
@@ -203,9 +221,9 @@ No reliable season-change event has been confirmed. `KGameTimeEvent` declares
 `TimeSystemLoaded` and `CrossWideTiemSetted` event-argument types, and game
 classes expose handlers with those names, but the available decompiled source
 does not show publisher wiring or establish that either event fires on season
-rollover. Until that behavior is confirmed, compare
-`KGameTimeUtil.Now.GetSeason()` during an appropriate active-UI update and
-refresh only when the season value changes.
+rollover. The plugin reads `KGameTimeUtil.Now.GetSeason()` and compares the
+value with its last observation. It refreshes visible cells when the season
+changes and also every 0.75 seconds to account for reused/rebound cells.
 
 ---
 
@@ -244,9 +262,9 @@ The implementation should detect when the game's current season changes and upda
 
 No reliable season-change event has been confirmed. `KGameTimeEvent` declares
 `TimeSystemLoaded` and `CrossWideTiemSetted`, but the available source does not
-show that either is published on season rollover. Until verified, compare
-`KGameTimeUtil.Now.GetSeason()` during an appropriate active-UI update and
-refresh only when its value changes.
+show that either is published on season rollover. The plugin compares `KGameTimeUtil.Now.GetSeason()` with its last
+observed value and refreshes on a change. It also refreshes visible cells every
+0.75 seconds so reused/rebound cells do not retain stale indicators.
 
 ---
 
@@ -280,7 +298,8 @@ Do not rely on:
 "Autumn Crop"
 ```
 
-unless investigation proves that these values directly represent the crop's growing-season metadata.
+as growing-season data. The implemented resolver uses `FarmSeedItemExt` and
+`CropTemplate.SeasonConfigs` instead.
 
 ---
 
@@ -292,11 +311,8 @@ The fact that ItemBrowser displays:
 Autumn Crop
 ```
 
-does not yet prove that this is the crop's actual growing-season definition.
-
-It may simply be an item category.
-
-Trace the data.
+is an item category in that UI, not the crop's growing-season definition. The
+indicator does not use it.
 
 ---
 
@@ -313,11 +329,9 @@ If an API is uncertain, investigate it first.
 
 ---
 
-# Desired Mod Architecture
+# Current Implementation Structure
 
-The final mod will likely need several conceptual pieces.
-
-## Season Provider
+## Season provider
 
 The current-season API is confirmed:
 
@@ -331,9 +345,78 @@ GameTime.KGameTimeUtil.GetSeason(GameTime.KGameTime) : GameTime.ESeason
 
 ---
 
-## Seed/Crop Metadata Resolver
+## Seed/crop metadata resolver
 
-Given an inventory item:
+For an item template, the implemented resolver follows:
+
+```text
+ItemTemplate
+    → Extensions
+    → FarmSeedItemExt (IL2CPP TryCast)
+    → Template.Get()
+    → CropTemplate
+    → SeasonConfigs : List<GameTime.ESeason>
+```
+
+The display decision uses the resolved crop seasons and the current season:
+
+```csharp
+if (growingSeasons contains all four actual seasons)
+    return no icon;
+
+if (growingSeasons includes currentSeason)
+    return sprite for currentSeason;
+
+return no icon;
+```
+
+Do not select a single fixed season from a multi-season crop's metadata. A
+crop that grows in Spring and Summer shows the current one. A missing crop
+template or season list produces no icon; it is not interpreted as a
+year-round crop.
+
+## Inventory and shop UI
+
+The plugin applies the same indicator logic to `UI.KUICell_Item` cells and
+`UI.KUIShopItemCard` cards. Player inventory, storage, and seed shop have been
+confirmed working. The seasonal `Image` is a separate overlay and does not
+replace the item's preview.
+
+## Seasonal image resources
+
+The four original 64×64 PNGs under `src/Assets` are embedded in the project
+assembly as resources:
+
+```text
+Spring  → spring.png
+Summer  → summer.png
+Autumn  → fall.png
+Winter  → winter.png
+```
+
+The plugin loads image bytes into `Texture2D`, creates sprites from the full
+source rectangle, and caches the resulting sprites. It displays them at a
+small UI size rather than at raw 64-pixel size.
+
+## Dynamic refresh
+
+The manager reads `KGameTimeUtil.Now.GetSeason()` and compares it to the last
+observed `GameTime.ESeason`. Active item cells and shop cards are refreshed on
+a season change or every 0.75 seconds, so recycled cells can be recalculated
+for their current item. A dedicated live test through an actual season
+rollover has not been recorded.
+
+---
+
+## Historical design notes
+
+The initial design and investigation emphasized discovery before UI
+integration. Those steps are complete; the details below are retained as
+design rationale rather than outstanding tasks.
+
+### Earlier metadata path proposal
+
+The data flow now implemented is:
 
 ```text
 Item
@@ -346,77 +429,6 @@ CropTemplate
     ↓
 SeasonConfigs : List<GameTime.ESeason>
 ```
-
-The display decision should use the resolved crop's configured seasons
-together with the current season:
-
-```csharp
-if (growingSeasons contains all four seasons)
-    return no icon;
-
-if (growingSeasons includes currentSeason)
-    return icon for currentSeason;
-
-return no icon;
-```
-
-Do not select a single fixed season from a multi-season crop's metadata. A
-crop that grows in Spring and Summer should show whichever of those seasons is
-current. The year-round `SeasonConfigs` convention is not verified; do not
-treat an empty or missing list as year-round without checking actual game data.
-
----
-
-## Inventory UI Integration
-
-Find the game's inventory UI and determine the appropriate place to add a small overlay/icon.
-
-The icon should be attached to the seed item's UI representation rather than replacing the existing item icon.
-
-Ideally:
-
-```text
-┌──────────┐
-│ [season] │
-│          │
-│  [seed]  │
-│          │
-└──────────┘
-```
-
-The exact positioning can be refined later.
-
----
-
-## Season Icon Manager
-
-Maintain the relationship:
-
-```text
-Spring  → flower
-Summer  → sun
-Autumn  → leaf
-Winter  → snowman
-```
-
-Choose the icon from the current season, not from a fixed season assigned to the crop. Show it only if the crop is seasonal (does not grow in all four seasons) and supports the current season. The actual art assets can be added later.
-
----
-
-## Dynamic Refresh
-
-When the game's season changes:
-
-1. Detect the change.
-2. Recalculate the current season.
-3. Update visible seed overlays.
-4. Remove overlays from crops that do not grow in the new current season, as well as from year-round crops.
-5. Do not require a game restart.
-
----
-
-
----
 
 # Development Philosophy
 

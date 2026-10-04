@@ -16,7 +16,7 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Starsand Island** that
 ## Requirements
 
 - Starsand Island (Steam)
-- BepInEx installed in the game folder
+- [BepInEx for Starsand Island](https://www.nexusmods.com/starsandisland/mods/9) installed in the game folder
 
 ## Installation
 
@@ -42,7 +42,16 @@ A [BepInEx](https://github.com/BepInEx/BepInEx) mod for **Starsand Island** that
 
 ## How it works
 
-The mod looks at each seed item, resolves it to its crop template, and checks that crop's season list against the current in-game season. If the crop is seasonal and the current season is in its list, an icon is added to the seed's inventory slot.
+The mod resolves a seed item through the game's `FarmSeedItemExt` metadata to
+its crop template, then checks `SeasonConfigs` against the current in-game
+season. It displays the matching seasonal PNG only when the crop is seasonal
+and growable now; all-season, out-of-season, and non-seed items show no icon.
+The PNGs are embedded in the mod DLL, so they do not need to be installed as
+separate files.
+
+Visible inventory, storage, and seed-shop indicators are refreshed when the
+season changes and periodically so recycled cells reflect their current item.
+The plugin does not include the development F7 diagnostic hotkey.
 
 ## Project status
 

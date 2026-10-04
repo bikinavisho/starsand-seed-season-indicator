@@ -169,7 +169,7 @@ Use ILSpy for static questions such as:
 - "Where is this property populated?"
 - "How does the game resolve this reference?"
 
-Use the runtime diagnostic plugin for dynamic questions such as:
+Use a temporary runtime probe/diagnostic build for dynamic questions such as:
 
 - "What object exists at runtime?"
 - "What value does this property contain right now?"
